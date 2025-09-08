@@ -1,32 +1,69 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+// Image loading
+const charactersImg = new Image();
+charactersImg.src = 'images/characters.png';
+
 // Player
 const player = {
-    x: canvas.width / 2,
-    y: canvas.height - 30,
-    width: 50,
-    height: 50,
-    color: 'blue'
+    x: canvas.width / 2 - 25,
+    y: canvas.height - 70,
+    width: 45,
+    height: 45,
+    speed: 10
 };
 
-// Avoider
-const avoider = {
-    x: Math.random() * (canvas.width - 30),
-    y: 0,
-    width: 30,
-    height: 30,
-    color: 'red',
-    speed: 2
+// Catcher
+const catcher = {
+    x: canvas.width / 2 - 25,
+    y: 10,
+    width: 45,
+    height: 45,
+    speed: 3,
+    direction: 1 // 1 for right, -1 for left
 };
 
 // Thrown objects
 const thrownObjects = [];
-const objectSpeed = 5;
+const objectSpeed = 7;
 
-function drawRect(x, y, width, height, color) {
-    ctx.fillStyle = color;
-    ctx.fillRect(x, y, width, height);
+// Score
+let score = 0;
+
+// Sprite sheet coordinates (estimated)
+const idleSprite = { x: 200, y: 100, width: 45, height: 45 };
+
+
+function drawPlayer() {
+    ctx.drawImage(charactersImg, idleSprite.x, idleSprite.y, idleSprite.width, idleSprite.height, player.x, player.y, player.width, player.height);
+}
+
+function drawCatcher() {
+    // Apply a filter to make the catcher look different
+    ctx.filter = 'hue-rotate(180deg)';
+    ctx.drawImage(charactersImg, idleSprite.x, idleSprite.y, idleSprite.width, idleSprite.height, catcher.x, catcher.y, catcher.width, catcher.height);
+    ctx.filter = 'none';
+}
+
+function drawThrownObjects() {
+    for (const obj of thrownObjects) {
+        // A simple shuriken shape
+        ctx.fillStyle = 'black';
+        ctx.save();
+        ctx.translate(obj.x + obj.width / 2, obj.y + obj.height / 2);
+        ctx.rotate(obj.angle * Math.PI / 180);
+        ctx.fillRect(-obj.width / 2, -obj.height / 2, obj.width, obj.height);
+        ctx.fillRect(-obj.height / 2, -obj.width / 2, obj.height, obj.width);
+        ctx.restore();
+        obj.angle += 10;
+    }
+}
+
+function drawScore() {
+    ctx.fillStyle = 'black';
+    ctx.font = '20px Arial';
+    ctx.fillText(`Score: ${score}`, 10, 20);
 }
 
 function clearCanvas() {
@@ -35,39 +72,36 @@ function clearCanvas() {
 
 function update() {
     clearCanvas();
+    drawScore();
+    drawPlayer();
+    drawCatcher();
+    drawThrownObjects();
 
-    // Draw player
-    drawRect(player.x, player.y, player.width, player.height, player.color);
-
-    // Draw and move avoider
-    avoider.y += avoider.speed;
-    if (avoider.y > canvas.height) {
-        avoider.y = 0;
-        avoider.x = Math.random() * (canvas.width - 30);
+    // Move catcher
+    catcher.x += catcher.speed * catcher.direction;
+    if (catcher.x + catcher.width > canvas.width || catcher.x < 0) {
+        catcher.direction *= -1;
     }
-    drawRect(avoider.x, avoider.y, avoider.width, avoider.height, avoider.color);
 
-    // Draw and move thrown objects
+    // Move thrown objects and check for collision
     for (let i = 0; i < thrownObjects.length; i++) {
         const obj = thrownObjects[i];
         obj.y -= objectSpeed;
-        drawRect(obj.x, obj.y, obj.width, obj.height, obj.color);
 
         // Collision detection
         if (
-            obj.x < avoider.x + avoider.width &&
-            obj.x + obj.width > avoider.x &&
-            obj.y < avoider.y + avoider.height &&
-            obj.y + obj.height > avoider.y
+            obj.x < catcher.x + catcher.width &&
+            obj.x + obj.width > catcher.x &&
+            obj.y < catcher.y + catcher.height &&
+            obj.y + obj.height > catcher.y
         ) {
-            alert('You hit the avoider!');
-            // Reset avoider
-            avoider.y = 0;
-            avoider.x = Math.random() * (canvas.width - 30);
+            score++;
+            thrownObjects.splice(i, 1);
+            i--;
         }
 
         // Remove objects that are off-screen
-        if (obj.y < 0) {
+        if (obj.y + obj.height < 0) {
             thrownObjects.splice(i, 1);
             i--;
         }
@@ -78,19 +112,27 @@ function update() {
 
 // Handle player input
 document.addEventListener('keydown', (e) => {
-    if (e.key === ' ') { // Spacebar to throw
-        thrownObjects.push({
-            x: player.x + player.width / 2 - 5,
-            y: player.y,
-            width: 10,
-            height: 10,
-            color: 'green'
-        });
-    } else if (e.key === 'ArrowLeft') {
-        player.x -= 10;
+    if (e.key === 'ArrowLeft') {
+        player.x -= player.speed;
     } else if (e.key === 'ArrowRight') {
-        player.x += 10;
+        player.x += player.speed;
+    } else if (e.key === ' ') { // Spacebar to throw
+        thrownObjects.push({
+            x: player.x + player.width / 2 - 10,
+            y: player.y,
+            width: 20,
+            height: 20,
+            angle: 0
+        });
+    }
+
+    // Keep player within canvas bounds
+    if (player.x < 0) {
+        player.x = 0;
+    }
+    if (player.x + player.width > canvas.width) {
+        player.x = canvas.width - player.width;
     }
 });
 
-update();
+charactersImg.onload = update;
